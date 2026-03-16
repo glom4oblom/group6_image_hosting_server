@@ -62,10 +62,9 @@ class ImageServerHandler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(b'Template not found')
 
     def get_upload_dir(self):
-        upload_dir = os.path.join(os.path.dirname(__file__), '..', 'images')
+        upload_dir = '/images'
         os.makedirs(upload_dir, exist_ok=True)
         return upload_dir
-
 
     def handle_upload(self):
         try:
@@ -111,17 +110,25 @@ class ImageServerHandler(http.server.BaseHTTPRequestHandler):
                 f.write(uploaded_file.file.read())
 
             file_size = os.path.getsize(save_path)
-            mime_type = f'image/{new_filename.split(".")[-1]}'
+            ext = os.path.splitext(new_filename)[1].lower()
+            mime_type = uploaded_file.type or f'image/{new_filename.split(".")[-1]}'
 
             db.connect()
-            db.save_metadata(new_filename, file_size, mime_type)
+            display_name = db.get_next_display_name(ext)
+            db.save_metadata(
+                filename=new_filename,
+                display_name=display_name,
+                original_name=uploaded_file.filename,
+                size=file_size,
+                file_type=mime_type
+            )
             db.disconnect()
 
             response_data = {
                 'success': True,
                 'message': 'File uploaded successfully',
                 'filename': new_filename,
-                'display_name': None,
+                'display_name': display_name,
                 'relative_url': f'/images/{new_filename}',
                 'url': f'{PUBLIC_BASE_URL}/images/{new_filename}'
             }
@@ -183,14 +190,12 @@ class ImageServerHandler(http.server.BaseHTTPRequestHandler):
 
             files = []
 
-            for index, image in enumerate(images, start=1):
+            for image in images:
                 filename = image['filename']
-                ext = os.path.splitext(filename)[1].lower()
-                display_name = f'image{index:02d}{ext}'
 
                 files.append({
                     'filename': filename,
-                    'display_name': display_name,
+                    'display_name': image['display_name'],
                     'relative_url': f'/images/{filename}',
                     'url': f'{PUBLIC_BASE_URL}/images/{filename}'
                 })
