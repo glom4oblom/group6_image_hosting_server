@@ -5,8 +5,10 @@ import json
 import cgi
 from validators import validate_image_file
 from file_handler import generate_unique_filename
+from database import Database
 
 PUBLIC_BASE_URL = 'https://group6-image-hosting-server.com'
+db = Database()
 
 
 class ImageServerHandler(http.server.BaseHTTPRequestHandler):
@@ -108,6 +110,13 @@ class ImageServerHandler(http.server.BaseHTTPRequestHandler):
             with open(save_path, 'wb') as f:
                 f.write(uploaded_file.file.read())
 
+            file_size = os.path.getsize(save_path)
+            mime_type = f'image/{new_filename.split(".")[-1]}'
+
+            db.connect()
+            db.save_metadata(new_filename, file_size, mime_type)
+            db.disconnect()
+
             response_data = {
                 'success': True,
                 'message': 'File uploaded successfully',
@@ -151,6 +160,10 @@ class ImageServerHandler(http.server.BaseHTTPRequestHandler):
 
             os.remove(file_path)
 
+            db.connect()
+            db.delete_image(filename)
+            db.disconnect()
+
             self.send_json({
                 'success': True,
                 'message': 'Image deleted successfully'
@@ -164,16 +177,14 @@ class ImageServerHandler(http.server.BaseHTTPRequestHandler):
 
     def serve_images_list(self):
         try:
-            upload_dir = self.get_upload_dir()
+            db.connect()
+            images = db.get_all_images()
+            db.disconnect()
+
             files = []
 
-            image_files = []
-            for name in sorted(os.listdir(upload_dir)):
-                file_path = os.path.join(upload_dir, name)
-                if os.path.isfile(file_path):
-                    image_files.append(name)
-
-            for index, filename in enumerate(image_files, start=1):
+            for index, image in enumerate(images, start=1):
+                filename = image['filename']
                 ext = os.path.splitext(filename)[1].lower()
                 display_name = f'image{index:02d}{ext}'
 
@@ -256,7 +267,7 @@ class ImageServerHandler(http.server.BaseHTTPRequestHandler):
 
 
 if __name__ == '__main__':
-    PORT = 8000
+    PORT = int(os.getenv('PORT', 8000))
     with socketserver.TCPServer(('', PORT), ImageServerHandler) as httpd:
         print(f"Server running at http://localhost:{PORT}")
         httpd.serve_forever()
