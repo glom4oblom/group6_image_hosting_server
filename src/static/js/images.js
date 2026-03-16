@@ -3,6 +3,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const uploadTab = document.getElementById('upload-tab-btn');
     const imagesTab = document.getElementById('images-tab-btn');
 
+    let currentPage = 1;
+
     const updateTabStyles = () => {
         if (!uploadTab || !imagesTab) return;
 
@@ -18,64 +20,108 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    const fetchImages = async () => {
-        const response = await fetch('/api/images');
+    const fetchImages = async (page = 1) => {
+        const response = await fetch(`/api/images?page=${page}`);
         const result = await response.json();
 
         if (!response.ok) {
             throw new Error(result.error || 'Failed to load images');
         }
 
-        return result.images || [];
-    };
-
-    const deleteImage = async (filename) => {
-        const response = await fetch('/delete', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ filename })
-        });
-
-        const result = await response.json();
-
-        if (!response.ok) {
-            throw new Error(result.error || 'Failed to delete image');
-        }
-
         return result;
     };
 
+    const deleteImage = async (imageId) => {
+    const response = await fetch(`/delete/${imageId}`, {
+        method: 'DELETE'
+    });
+
+    const rawText = await response.text();
+    let result = {};
+
+    if (rawText) {
+        try {
+            result = JSON.parse(rawText);
+        } catch (e) {
+            throw new Error(`Server returned non-JSON response: ${rawText}`);
+        }
+    }
+
+    if (!response.ok) {
+        throw new Error(result.error || `Delete failed with status ${response.status}`);
+    }
+
+    return result;
+};
+
     const addDeleteListeners = () => {
         document.querySelectorAll('.delete-btn').forEach((button) => {
-            button.addEventListener('click', async (event) => {
-                const filename = event.currentTarget.dataset.filename;
-
-                if (!filename) {
-                    alert('Filename not found');
-                    return;
-                }
-
-                try {
-                    await deleteImage(filename);
-                    await displayFiles();
-                } catch (error) {
-                    alert(error.message);
-                }
-            });
-        });
+    button.addEventListener('click', async (event) => {
+        const imageId = event.currentTarget.dataset.id;
+        await deleteImage(imageId);
+        await displayFiles(currentPage);
+    });
+});
     };
 
-    const displayFiles = async () => {
+    const renderPagination = (pagination) => {
+        if (!pagination || pagination.total_pages <= 1) {
+            return '';
+        }
+
+        return `
+            <div class="pagination" style="display:flex; gap:12px; justify-content:center; margin-top:24px;">
+                <button id="prev-page-btn" ${pagination.has_prev ? '' : 'disabled'}>
+                    Previous page
+                </button>
+                <span>Page ${pagination.page} of ${pagination.total_pages}</span>
+                <button id="next-page-btn" ${pagination.has_next ? '' : 'disabled'}>
+                    Next page
+                </button>
+            </div>
+        `;
+    };
+
+    const bindPagination = (pagination) => {
+        const prevBtn = document.getElementById('prev-page-btn');
+        const nextBtn = document.getElementById('next-page-btn');
+
+        if (prevBtn) {
+            prevBtn.addEventListener('click', async () => {
+                if (pagination.has_prev) {
+                    currentPage -= 1;
+                    await displayFiles(currentPage);
+                }
+            });
+        }
+
+        if (nextBtn) {
+            nextBtn.addEventListener('click', async () => {
+                if (pagination.has_next) {
+                    currentPage += 1;
+                    await displayFiles(currentPage);
+                }
+            });
+        }
+    };
+
+    const displayFiles = async (page = 1) => {
         if (!fileListWrapper) return;
 
         try {
-            const storedFiles = await fetchImages();
+            const result = await fetchImages(page);
+            const storedFiles = result.images || [];
+            const pagination = result.pagination || null;
+
+            currentPage = pagination?.page || page;
             fileListWrapper.innerHTML = '';
 
             if (storedFiles.length === 0) {
-                fileListWrapper.innerHTML = '<p class="upload__promt" style="text-align: center; margin-top: 50px;">No images uploaded yet.</p>';
+                fileListWrapper.innerHTML = `
+                    <p class="upload__promt" style="text-align: center; margin-top: 50px;">
+                        No images uploaded yet.
+                    </p>
+                `;
                 updateTabStyles();
                 return;
             }
@@ -86,9 +132,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const header = document.createElement('div');
             header.className = 'file-list-header';
             header.innerHTML = `
-                <div class="file-col file-col-icon"></div>
-                <div class="file-col file-col-preview"></div>
+                <div class="file-col file-col-preview">Preview</div>
                 <div class="file-col file-col-name">Name</div>
+                <div class="file-col file-col-original">Original name</div>
+                <div class="file-col file-col-size">Size (KB)</div>
+                <div class="file-col file-col-date">Upload time</div>
+                <div class="file-col file-col-type">Type</div>
                 <div class="file-col file-col-url">Url</div>
                 <div class="file-col file-col-delete">Delete</div>
             `;
@@ -101,16 +150,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 const fileItem = document.createElement('div');
                 fileItem.className = 'file-list-item';
                 fileItem.innerHTML = `
-                    <div class="file-col file-col-icon">
-                        <img src="/static/img/Group.png" alt="Icon" class="list-icon">
-                    </div>
                     <div class="file-col file-col-preview">
                         <img src="${fileData.relative_url}" alt="${fileData.display_name}" class="image-preview">
                     </div>
-                    <div class="file-col file-col-name">${fileData.display_name}</div>
-                    <div class="file-col file-col-url">${fileData.url}</div>
+                    <div class="file-col file-col-name">
+                        <a href="${fileData.relative_url}" target="_blank">${fileData.display_name}</a>
+                    </div>
+                    <div class="file-col file-col-original">${fileData.original_name}</div>
+                    <div class="file-col file-col-size">${fileData.size_kb}</div>
+                    <div class="file-col file-col-date">${fileData.upload_time}</div>
+                    <div class="file-col file-col-type">${fileData.file_type}</div>
+                    <div class="file-col file-col-url">
+                        <a href="${fileData.relative_url}" target="_blank">${fileData.url}</a>
+                    </div>
                     <div class="file-col file-col-delete">
-                        <button class="delete-btn" data-filename="${fileData.filename}">
+                        <button class="delete-btn" data-id="${fileData.id}">
                             <img src="/static/img/delete.png" alt="Delete" class="delete-icon">
                         </button>
                     </div>
@@ -119,26 +173,24 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             container.appendChild(list);
+
+            const paginationWrapper = document.createElement('div');
+            paginationWrapper.innerHTML = renderPagination(pagination);
+            container.appendChild(paginationWrapper);
+
             fileListWrapper.appendChild(container);
 
             addDeleteListeners();
+            bindPagination(pagination);
             updateTabStyles();
         } catch (error) {
-            fileListWrapper.innerHTML = `<p style="text-align:center; margin-top:50px; color:red;">${error.message}</p>`;
+            fileListWrapper.innerHTML = `
+                <p style="text-align:center; margin-top:50px; color:red;">
+                    ${error.message}
+                </p>
+            `;
         }
     };
 
-    if (uploadTab) {
-        uploadTab.addEventListener('click', () => {
-            window.location.href = '/upload';
-        });
-    }
-
-    if (imagesTab) {
-        imagesTab.addEventListener('click', () => {
-            window.location.href = '/images-list';
-        });
-    }
-
-    displayFiles();
+    displayFiles(currentPage);
 });

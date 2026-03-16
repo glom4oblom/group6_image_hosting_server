@@ -37,7 +37,7 @@ body {
     line-height: 1.5;
     background-color: #f2f5ff;
     font-family: "Inter", sans-serif;
-    color: #fff;
+    color: #000;
 }
 
 a:not([class]) {
@@ -300,19 +300,21 @@ select {
    FILE LIST
 ========================= */
 .file-list-container {
-    max-width: 800px;
-    margin: 0 auto 292px;
-    padding: 20px;
+    max-width: 1400px;
+    overflow-x: auto;
+    margin: 0 auto 60px;
+    padding: 20px 30px;
     border-radius: 8px;
 }
 
 .file-list-header,
 .file-list-item {
-    display: flex;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: 110px 140px 220px 100px 170px 110px minmax(260px, 1fr) 70px;
+    gap: 16px;
     align-items: center;
-    padding: 10px 0;
-    border-bottom: 1px solid #eef0f5;
+    padding: 14px 0;
+    border-bottom: 1px solid #dfe5f2;
 }
 
 .file-list-item:last-child {
@@ -322,53 +324,54 @@ select {
 .file-list-header {
     color: #8a96b1;
     font-size: 14px;
-    font-weight: 500;
+    font-weight: 600;
 }
 
 .file-col {
     display: flex;
     align-items: center;
+    min-width: 0;
+    color: #222;
 }
 
-.file-col-name {
-    flex-basis: 35%;
+.file-col-name a,
+.file-col-url a {
+    color: #222;
+    text-decoration: none;
+    word-break: break-word;
 }
 
-.file-col-url {
-    flex-basis: 50%;
-    color: #555;
+.file-col-name a:hover,
+.file-col-url a:hover {
+    text-decoration: underline;
+}
+
+.file-col-original,
+.file-col-date,
+.file-col-type,
+.file-col-size {
+    color: #222;
     font-size: 14px;
+    word-break: break-word;
+}
+
+.image-preview {
+    width: 90px;
+    height: 70px;
+    object-fit: cover;
+    border-radius: 8px;
 }
 
 .file-col-delete {
-    flex-basis: 10%;
     justify-content: center;
-}
-
-.file-icon {
-    margin-right: 15px;
-    color: #0060ff;
-    font-size: 20px;
-}
-
-.delete-img {
-    width: 32px;
-    height: 32px;
-}
-
-.file-name {
-    max-width: 200px;
-    overflow: hidden;
-    color: #333;
-    font-weight: 500;
-    white-space: nowrap;
-    text-overflow: ellipsis;
 }
 
 .delete-btn {
     display: flex;
     align-items: center;
     justify-content: center;
+    width: 36px;
+    height: 36px;
     padding: 0;
     border: none;
     border-radius: 50%;
@@ -378,6 +381,27 @@ select {
 }
 
 .delete-btn:hover {
-    background: transparent;
     opacity: 0.7;
+}
+
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    margin-top: 24px;
+    color: #222;
+}
+
+.pagination button {
+    padding: 8px 14px;
+    border: 1px solid #cfd8ee;
+    border-radius: 8px;
+    background: #fff;
+    cursor: pointer;
+}
+
+.pagination button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }

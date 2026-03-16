@@ -58,22 +58,39 @@ class Database:
         self.connection.commit()
         return self.cursor.fetchone()
 
-    def get_all_images(self):
+    def get_images_page(self, limit=10, offset=0):
         query = """
-            SELECT id, filename, display_name, original_name, size, file_type, upload_time
-            FROM images
-            ORDER BY id ASC
-        """
-        self.cursor.execute(query)
+                SELECT id, filename, display_name, original_name, size, file_type, upload_time
+                FROM images
+                ORDER BY upload_time DESC, id DESC
+                    LIMIT %s \
+                OFFSET %s \
+                """
+        self.cursor.execute(query, (limit, offset))
         return self.cursor.fetchall()
 
-    def delete_image(self, filename):
+    def get_total_images_count(self):
+        query = "SELECT COUNT(*) AS total FROM images"
+        self.cursor.execute(query)
+        row = self.cursor.fetchone()
+        return row["total"]
+
+    def get_image_by_id(self, image_id):
         query = """
-            DELETE FROM images
-            WHERE filename = %s
-            RETURNING id
-        """
-        self.cursor.execute(query, (filename,))
+                SELECT id, filename, display_name, original_name, size, file_type, upload_time
+                FROM images
+                WHERE id = %s \
+                """
+        self.cursor.execute(query, (image_id,))
+        return self.cursor.fetchone()
+
+    def delete_image_by_id(self, image_id):
+        query = """
+                DELETE \
+                FROM images
+                WHERE id = %s RETURNING id \
+                """
+        self.cursor.execute(query, (image_id,))
         deleted_row = self.cursor.fetchone()
         self.connection.commit()
         return deleted_row is not None

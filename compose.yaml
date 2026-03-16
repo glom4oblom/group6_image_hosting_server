@@ -20,6 +20,7 @@ services:
       - .env
     volumes:
       - ./images:/images
+      - ./logs:/logs
       - ./backups:/app/backups
     depends_on:
       db:
