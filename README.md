@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  Built with Python, PostgreSQL, Docker, and Nginx as a portfolio project to showcase backend, database, frontend, and DevOps skills.
+  Built with Python, PostgreSQL, Docker, and Nginx as a learning project focused on backend, database, frontend, and DevOps practices.
 </p>
 
 ---
@@ -55,7 +55,9 @@ This project was built as a **portfolio-ready demonstration** of:
 - 🌐 Nginx reverse proxy + static file serving
 - 🐳 Dockerized multi-service architecture
 - 💾 Backup and restore script for PostgreSQL
-
+- 📝 Logging of upload and delete actions to `logs/app.log`
+- 📄 Paginated image gallery (10 images per page)
+ 
 ---
 
 ## 🛠️ Tech Stack
@@ -99,9 +101,10 @@ This project was built as a **portfolio-ready demonstration** of:
 
 The gallery page:
 
-- requests images from the backend
-- renders image preview, display name, and URL
+- requests paginated images from the backend
+- renders image preview, display name, original filename, size, upload time, file type, and URL
 - provides a delete button for each image
+- supports pagination for large image collections
 
 When deleting:
 
@@ -207,9 +210,11 @@ Users can:
 Users can:
 
 - preview uploaded images
-- view clean display names
-- see direct image URLs
+- view display names and original filenames
+- see file size, upload time, and MIME type
+- open direct image URLs
 - delete images
+- navigate through paginated results
 
 ---
 
@@ -296,6 +301,18 @@ Validation is implemented on both:
 
 ---
 
+## 📝 Logging
+
+The application writes runtime logs to:
+
+`logs/app.log`
+
+Logged events include:
+
+- successful uploads
+- successful deletions
+- server-side errors
+
 ## 🐳 Docker Architecture
 
 The project uses 3 services:
@@ -335,7 +352,6 @@ This architecture makes the project much closer to a real production-like setup 
 ## 🔮 Possible Improvements
 
 - 👤 User authentication
-- 📄 Pagination for large image galleries
 - 🔍 Search and filtering
 - 🖼️ Thumbnail generation
 - ☁️ Cloud storage integration
