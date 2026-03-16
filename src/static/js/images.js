@@ -1,52 +1,98 @@
-document.addEventListener('DOMContentLoaded', () => {
-    document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape') {
-            event.preventDefault();
-            window.location.href = '/upload';
-        }
+const fileListWrapper = document.getElementById('file-list-wrapper');
+const LOCAL_STORAGE_KEY = 'uploaded_images';
+
+const getStoredImages = () => {
+    try {
+        return JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY)) || [];
+    } catch (error) {
+        return [];
+    }
+};
+
+const saveStoredImages = (images) => {
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(images));
+};
+
+const removeImageFromLocalStorage = (filename) => {
+    const images = getStoredImages().filter((img) => img.name !== filename);
+    saveStoredImages(images);
+};
+
+const fetchImages = async () => {
+    const localImages = getStoredImages();
+
+    if (localImages.length > 0) {
+        return localImages;
+    }
+
+    const response = await fetch('/api/images');
+    const result = await response.json();
+
+    if (!response.ok) {
+        throw new Error(result.error || 'Failed to load images');
+    }
+
+    const images = result.images || [];
+    saveStoredImages(images);
+
+    return images;
+};
+
+const deleteImage = async (filename) => {
+    const response = await fetch('/delete-image', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ filename })
     });
 
-    const fileListWrapper = document.getElementById('file-list-wrapper');
-    const uploadRedirectButton = document.getElementById('upload-tab-btn');
+    const result = await response.json();
 
-    const updateTabStyles = () => {
-        const uploadTab = document.getElementById('upload-tab-btn');
-        const imagesTab = document.getElementById('images-tab-btn');
-        const isImagesPage = window.location.pathname.includes('/images-list');
+    if (!response.ok) {
+        throw new Error(result.error || 'Failed to delete image');
+    }
 
-        if (!uploadTab || !imagesTab) return;
+    return result;
+};
 
-        uploadTab.classList.remove('upload__tab--active');
-        imagesTab.classList.remove('upload__tab--active');
+const updateTabStyles = () => {
+    const uploadLink = document.querySelector('.upload');
+    const imagesLink = document.querySelector('.images');
 
-        if (isImagesPage) {
-            imagesTab.classList.add('upload__tab--active');
-        } else {
-            uploadTab.classList.add('upload__tab--active');
-        }
-    };
+    if (uploadLink) uploadLink.classList.remove('active');
+    if (imagesLink) imagesLink.classList.add('active');
+};
 
-    const addDeleteListeners = () => {
-        document.querySelectorAll('.delete-btn').forEach((button) => {
-            button.addEventListener('click', (event) => {
-                const indexToDelete = parseInt(event.currentTarget.dataset.index, 10);
-                const storedFiles = JSON.parse(localStorage.getItem('uploadedImages')) || [];
+const addDeleteListeners = () => {
+    document.querySelectorAll('.delete-btn').forEach((button) => {
+        button.addEventListener('click', async (event) => {
+            const filename = event.currentTarget.dataset.filename;
 
-                storedFiles.splice(indexToDelete, 1);
-                localStorage.setItem('uploadedImages', JSON.stringify(storedFiles));
-                displayFiles();
-            });
+            try {
+                await deleteImage(filename);
+                removeImageFromLocalStorage(filename);
+                await displayFiles();
+            } catch (error) {
+                alert(error.message);
+            }
         });
-    };
+    });
+};
 
-    const displayFiles = () => {
-        if (!fileListWrapper) return;
+const displayFiles = async () => {
+    if (!fileListWrapper) return;
 
-        const storedFiles = JSON.parse(localStorage.getItem('uploadedImages')) || [];
+    try {
+        const storedFiles = await fetchImages();
         fileListWrapper.innerHTML = '';
 
         if (storedFiles.length === 0) {
-            fileListWrapper.innerHTML = '<p class="upload__promt" style="text-align: center; margin-top: 50px;">No images uploaded yet.</p>';
+            fileListWrapper.innerHTML = `
+                <p class="upload__promt" style="text-align: center; margin-top: 50px;">
+                    No images uploaded yet.
+                </p>
+            `;
             updateTabStyles();
             return;
         }
@@ -57,6 +103,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const header = document.createElement('div');
         header.className = 'file-list-header';
         header.innerHTML = `
+            <div class="file-col file-col-icon"></div>
+            <div class="file-col file-col-preview"></div>
             <div class="file-col file-col-name">Name</div>
             <div class="file-col file-col-url">Url</div>
             <div class="file-col file-col-delete">Delete</div>
@@ -66,21 +114,26 @@ document.addEventListener('DOMContentLoaded', () => {
         const list = document.createElement('div');
         list.id = 'file-list';
 
-        storedFiles.forEach((fileData, index) => {
+        storedFiles.forEach((fileData) => {
             const fileItem = document.createElement('div');
             fileItem.className = 'file-list-item';
+
             fileItem.innerHTML = `
-                <div class="file-col file-col-name">
-                    <span class="file-icon"><img src="../static/img/Group.png" alt="file icon"></span>
-                    <span class="file-name">${fileData.name}</span>
+                <div class="file-col file-col-icon">
+                    <img src="/static/img/Group.png" alt="Icon" class="list-icon">
                 </div>
-                <div class="file-col file-col-url">https://sharefile.xyz/${fileData.name}</div>
+                <div class="file-col file-col-preview">
+                    <img src="${fileData.relative_url}" alt="${fileData.name}" class="image-preview">
+                </div>
+                <div class="file-col file-col-name">${fileData.name}</div>
+                <div class="file-col file-col-url">${fileData.url}</div>
                 <div class="file-col file-col-delete">
-                    <button class="delete-btn" data-index="${index}">
-                        <img src="../static/img/delete.png" alt="delete icon">
+                    <button class="delete-btn" data-filename="${fileData.name}">
+                        <img src="/static/img/delete.png" alt="Delete" class="delete-icon">
                     </button>
                 </div>
             `;
+
             list.appendChild(fileItem);
         });
 
@@ -89,13 +142,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         addDeleteListeners();
         updateTabStyles();
-    };
-
-    if (uploadRedirectButton) {
-        uploadRedirectButton.addEventListener('click', () => {
-            window.location.href = '/upload';
-        });
+    } catch (error) {
+        fileListWrapper.innerHTML = `
+            <p style="text-align:center; margin-top:50px; color:red;">
+                ${error.message}
+            </p>
+        `;
     }
+};
 
-    displayFiles();
-});
+document.addEventListener('DOMContentLoaded', displayFiles);

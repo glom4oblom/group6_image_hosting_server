@@ -20,8 +20,8 @@
         <p class="upload__description">Upload selfies, memes, or any fun pictures here.</p>
     </section>
     <nav class="upload__tabs">
-        <button class="upload__tab" id="upload-tab-btn">Upload</button>
-        <button class="upload__tab " id="images-tab-btn">Images</button>
+    <a class="upload__tab upload__tab--active" id="upload-tab-btn" href="/upload">Upload</a>
+    <a class="upload__tab" id="images-tab-btn" href="/images-list">Images</a>
     </nav>
     <section class="upload__form">
         <div class="upload__dropzone">
@@ -35,6 +35,7 @@
         <div class="upload__button">
             <input type="file" id="file-upload" accept="image/*" style="display: none;" multiple>
             <label for="file-upload" class="upload__button-btn">Browse your file</label>
+            <p class="upload-status"></p>
         </div>
         <div class="upload__container">
             <div class="upload__group">

@@ -381,3 +381,89 @@ select {
     background: transparent;
     opacity: 0.7;
 }
+
+.file-list-item {
+    display: grid;
+    grid-template-columns: 120px 180px 1fr 60px;
+    align-items: center;
+    gap: 16px;
+}
+
+.file-col-preview {
+    width: 120px;
+}
+
+.image-preview {
+    width: 100px;
+    height: 100px;
+    object-fit: cover;
+    display: block;
+    border-radius: 8px;
+}
+
+.delete-btn {
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+}
+
+.delete-btn img {
+    width: 20px;
+    height: 20px;
+    display: block;
+}
+
+.file-list-header,
+.file-list-item {
+    display: grid;
+    grid-template-columns: 40px 80px 180px 1fr 60px;
+    align-items: center;
+    column-gap: 24px;
+}
+
+.file-list-header {
+    margin-bottom: 20px;
+}
+
+.file-list-item {
+    padding: 16px 0;
+    border-top: 1px solid #e5e7eb;
+}
+
+.file-col-name {
+    color: #222;
+    font-weight: 600;
+}
+
+.file-col-url {
+    color: #4b5563;
+    word-break: break-word;
+}
+
+.list-icon {
+    width: 28px;
+    height: 28px;
+    display: block;
+}
+
+.image-preview {
+    width: 80px;
+    height: 56px;
+    object-fit: cover;
+    border-radius: 8px;
+    display: block;
+}
+
+.delete-btn {
+    border: none;
+    background: transparent;
+    padding: 0;
+    cursor: pointer;
+}
+
+.delete-icon {
+    width: 36px;
+    height: 36px;
+    display: block;
+}

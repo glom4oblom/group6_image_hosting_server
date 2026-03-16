@@ -1,111 +1,156 @@
-document.addEventListener('DOMContentLoaded', () => {
-    document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape' || event.key === 'F5') {
-            event.preventDefault();
-            sessionStorage.removeItem('pageWasVisited');
-            window.location.href = '/';
-        }
-    });
-
-    const fileUpload = document.getElementById('file-upload');
-    const imagesButton = document.getElementById('images-tab-btn');
+document.addEventListener('DOMContentLoaded', function () {
+    const uploadTab = document.getElementById('upload-tab-btn');
+    const imagesTab = document.getElementById('images-tab-btn');
+    const fileInput = document.querySelector('#file-upload');
     const dropzone = document.querySelector('.upload__dropzone');
     const currentUploadInput = document.querySelector('.upload__input');
     const copyButton = document.querySelector('.upload__copy');
+    const statusMessage = document.querySelector('.upload-status');
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
+    const maxSizeBytes = 5 * 1024 * 1024;
+
+    const LOCAL_STORAGE_KEY = 'uploaded_images';
+
+const getStoredImages = () => {
+    try {
+        return JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY)) || [];
+    } catch (error) {
+        return [];
+    }
+};
+
+const saveStoredImages = (images) => {
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(images));
+};
+
+const addImageToLocalStorage = (imageData) => {
+    const images = getStoredImages();
+
+    const normalizedImage = {
+        name: imageData.filename || imageData.name,
+        relative_url: imageData.relative_url,
+        url: imageData.url
+    };
+
+    const exists = images.some((img) => img.name === normalizedImage.name);
+
+    if (!exists) {
+        images.push(normalizedImage);
+        saveStoredImages(images);
+    }
+};
 
     const updateTabStyles = () => {
-        const uploadTab = document.getElementById('upload-tab-btn');
-        const imagesTab = document.getElementById('images-tab-btn');
-        const isImagesPage = window.location.pathname.includes('/images.html');
-
         if (!uploadTab || !imagesTab) return;
+
+        const isUploadPage = window.location.pathname === '/upload';
+        const isImagesPage = window.location.pathname === '/images-list';
 
         uploadTab.classList.remove('upload__tab--active');
         imagesTab.classList.remove('upload__tab--active');
 
         if (isImagesPage) {
             imagesTab.classList.add('upload__tab--active');
-        } else {
+        } else if (isUploadPage) {
             uploadTab.classList.add('upload__tab--active');
         }
     };
 
-    const handleAndStoreFiles = (files) => {
+    const showMessage = (message, isError = false) => {
+        if (!statusMessage) {
+            alert(message);
+            return;
+        }
+
+        statusMessage.textContent = message;
+        statusMessage.style.color = isError ? 'red' : 'green';
+    };
+
+    const uploadFileToServer = async (file) => {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await fetch('/upload', {
+            method: 'POST',
+            body: formData
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.error || 'Upload failed');
+        }
+
+        return result;
+    };
+
+    const handleAndStoreFiles = async (files) => {
         if (!files || files.length === 0) return;
 
-        const storedFiles = JSON.parse(localStorage.getItem('uploadedImages')) || [];
-        const allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
-        const maxSizeBytes = 5 * 1024 * 1024;
-        let lastFileName = '';
-
         for (const file of files) {
-            if (!allowedTypes.includes(file.type) || file.size > maxSizeBytes) {
+            if (!allowedTypes.includes(file.type)) {
+                showMessage('Unsupported file format. Only JPG, PNG and GIF are allowed.', true);
                 continue;
             }
 
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                storedFiles.push({
-                    name: file.name,
-                    url: event.target.result
-                });
-                localStorage.setItem('uploadedImages', JSON.stringify(storedFiles));
-                updateTabStyles();
-            };
-            reader.readAsDataURL(file);
+            if (file.size > maxSizeBytes) {
+                showMessage('File too large. Maximum file size is 5 MB.', true);
+                continue;
+            }
 
-            lastFileName = file.name;
+            try {
+                showMessage('Uploading...');
+
+                const result = await uploadFileToServer(file);
+
+                if (result.success) {
+            if (currentUploadInput) {
+                currentUploadInput.value = result.url;
+            }
+
+            addImageToLocalStorage(result);
+
+            showMessage(result.message || 'File uploaded successfully');
+        } else {
+            showMessage(result.error || 'Upload failed', true);
         }
-
-        if (lastFileName && currentUploadInput) {
-            currentUploadInput.value = `https://sharefile.xyz/${lastFileName}`;
+            } catch (error) {
+                console.error('UPLOAD FRONT ERROR:', error);
+                showMessage(error.message || 'Server error while uploading file.', true);
+            }
         }
     };
 
-    if (copyButton && currentUploadInput) {
-        copyButton.addEventListener('click', () => {
-            const textToCopy = currentUploadInput.value;
-
-            if (textToCopy && textToCopy !== 'https://') {
-                navigator.clipboard.writeText(textToCopy)
-                    .then(() => {
-                        copyButton.textContent = 'COPIED!';
-                        setTimeout(() => {
-                            copyButton.textContent = 'COPY';
-                        }, 2000);
-                    })
-                    .catch((err) => {
-                        console.error('Failed to copy text:', err);
-                    });
-            }
-        });
-    }
-
-    if (imagesButton) {
-        imagesButton.addEventListener('click', () => {
-            window.location.href = '/images-list';
-        });
-    }
-
-    if (fileUpload) {
-        fileUpload.addEventListener('change', (event) => {
-            handleAndStoreFiles(event.target.files);
+    if (fileInput) {
+        fileInput.addEventListener('change', async (event) => {
+            await handleAndStoreFiles(event.target.files);
             event.target.value = '';
         });
     }
 
     if (dropzone) {
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach((eventName) => {
-            dropzone.addEventListener(eventName, (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-            });
+        dropzone.addEventListener('dragover', (event) => {
+            event.preventDefault();
         });
 
-        dropzone.addEventListener('drop', (event) => {
-            handleAndStoreFiles(event.dataTransfer.files);
+        dropzone.addEventListener('drop', async (event) => {
+            event.preventDefault();
+            await handleAndStoreFiles(event.dataTransfer.files);
         });
     }
+
+    if (copyButton && currentUploadInput) {
+        copyButton.addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(currentUploadInput.value);
+                showMessage('Link copied successfully');
+            } catch (error) {
+                showMessage('Failed to copy link', true);
+            }
+        });
+    }
+
 
     updateTabStyles();
 });
