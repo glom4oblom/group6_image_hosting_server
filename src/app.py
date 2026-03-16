@@ -4,6 +4,7 @@ import os
 import json
 import cgi
 from validators import validate_image_file
+from file_handler import generate_unique_filename
 
 PUBLIC_BASE_URL = 'https://group6-image-hosting-server.com'
 
@@ -31,8 +32,8 @@ class ImageServerHandler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path == '/upload':
             self.handle_upload()
-        elif self.path == '/delete-image':
-            self.handle_delete_image()
+        elif self.path == '/delete':
+            self.handle_delete()
         else:
             self.send_response(404)
             self.end_headers()
@@ -63,25 +64,6 @@ class ImageServerHandler(http.server.BaseHTTPRequestHandler):
         os.makedirs(upload_dir, exist_ok=True)
         return upload_dir
 
-    def generate_next_filename(self, original_filename):
-        extension = original_filename.lower().split('.')[-1]
-        upload_dir = self.get_upload_dir()
-
-        existing_files = [
-            name for name in os.listdir(upload_dir)
-            if os.path.isfile(os.path.join(upload_dir, name))
-        ]
-
-        max_number = 0
-        for name in existing_files:
-            base_name, _ext = os.path.splitext(name)
-            if base_name.startswith('image'):
-                number_part = base_name[5:]
-                if number_part.isdigit():
-                    max_number = max(max_number, int(number_part))
-
-        next_number = max_number + 1
-        return f'image{next_number:02d}.{extension}'
 
     def handle_upload(self):
         try:
@@ -119,7 +101,7 @@ class ImageServerHandler(http.server.BaseHTTPRequestHandler):
                 return
 
             upload_dir = self.get_upload_dir()
-            new_filename = self.generate_next_filename(uploaded_file.filename)
+            new_filename = generate_unique_filename(uploaded_file.filename)
             save_path = os.path.join(upload_dir, new_filename)
 
             uploaded_file.file.seek(0)
@@ -130,6 +112,7 @@ class ImageServerHandler(http.server.BaseHTTPRequestHandler):
                 'success': True,
                 'message': 'File uploaded successfully',
                 'filename': new_filename,
+                'display_name': None,
                 'relative_url': f'/images/{new_filename}',
                 'url': f'{PUBLIC_BASE_URL}/images/{new_filename}'
             }
@@ -143,7 +126,7 @@ class ImageServerHandler(http.server.BaseHTTPRequestHandler):
                 'error': str(e)
             }, status=500)
 
-    def handle_delete_image(self):
+    def handle_delete(self):
         try:
             content_length = int(self.headers.get('Content-Length', 0))
             raw_data = self.rfile.read(content_length)
@@ -184,14 +167,22 @@ class ImageServerHandler(http.server.BaseHTTPRequestHandler):
             upload_dir = self.get_upload_dir()
             files = []
 
+            image_files = []
             for name in sorted(os.listdir(upload_dir)):
                 file_path = os.path.join(upload_dir, name)
                 if os.path.isfile(file_path):
-                    files.append({
-                        'name': name,
-                        'relative_url': f'/images/{name}',
-                        'url': f'{PUBLIC_BASE_URL}/images/{name}'
-                    })
+                    image_files.append(name)
+
+            for index, filename in enumerate(image_files, start=1):
+                ext = os.path.splitext(filename)[1].lower()
+                display_name = f'image{index:02d}{ext}'
+
+                files.append({
+                    'filename': filename,
+                    'display_name': display_name,
+                    'relative_url': f'/images/{filename}',
+                    'url': f'{PUBLIC_BASE_URL}/images/{filename}'
+                })
 
             self.send_json({
                 'success': True,
@@ -239,45 +230,33 @@ class ImageServerHandler(http.server.BaseHTTPRequestHandler):
         except FileNotFoundError:
             self.send_response(404)
             self.end_headers()
-            self.wfile.write(b'Static file not found')
+
+    def get_content_type(self, filename):
+        ext = os.path.splitext(filename)[1].lower()
+        content_types = {
+            '.html': 'text/html; charset=utf-8',
+            '.css': 'text/css; charset=utf-8',
+            '.js': 'application/javascript; charset=utf-8',
+            '.png': 'image/png',
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.gif': 'image/gif',
+            '.svg': 'image/svg+xml',
+            '.json': 'application/json; charset=utf-8'
+        }
+        return content_types.get(ext, 'application/octet-stream')
 
     def send_json(self, data, status=200):
+        response = json.dumps(data).encode('utf-8')
         self.send_response(status)
-        self.send_header('Content-type', 'application/json; charset=utf-8')
+        self.send_header('Content-Type', 'application/json; charset=utf-8')
+        self.send_header('Content-Length', str(len(response)))
         self.end_headers()
-        self.wfile.write(json.dumps(data).encode('utf-8'))
-
-    def get_content_type(self, file_path):
-        if file_path.endswith('.css'):
-            return 'text/css'
-        elif file_path.endswith('.js'):
-            return 'application/javascript'
-        elif file_path.endswith('.png'):
-            return 'image/png'
-        elif file_path.endswith('.jpg') or file_path.endswith('.jpeg'):
-            return 'image/jpeg'
-        elif file_path.endswith('.gif'):
-            return 'image/gif'
-        elif file_path.endswith('.svg'):
-            return 'image/svg+xml'
-        elif file_path.endswith('.html'):
-            return 'text/html; charset=utf-8'
-        else:
-            return 'application/octet-stream'
+        self.wfile.write(response)
 
 
-def run_server(port=8000):
-    port = int(os.environ.get('PORT', port))
-    try:
-        with socketserver.TCPServer(("", port), ImageServerHandler) as httpd:
-            print(f"Server running on port {port} ...")
-            try:
-                httpd.serve_forever()
-            except KeyboardInterrupt:
-                print("Server stopped by user")
-    except OSError as e:
-        print(f"Error starting server: {e}")
-
-
-if __name__ == "__main__":
-    run_server()
+if __name__ == '__main__':
+    PORT = 8000
+    with socketserver.TCPServer(('', PORT), ImageServerHandler) as httpd:
+        print(f"Server running at http://localhost:{PORT}")
+        httpd.serve_forever()
